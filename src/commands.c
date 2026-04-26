@@ -12,43 +12,6 @@
 #include <dirent.h>
 #include <errno.h>
 
-typedef struct {
-	int id;
-	char inspector_name[100];
-	int latitude;
-	int longitude;
-	char category[50];
-	int sec_level;
-	time_t timestamp;
-	char description[256];
-} Report;
-
-void log_action(Context *ctx, const char *action) {
-    char path[512];
-    int fd;
-    char buf[1024];
-    time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
-    char time_str[64];
-
-    strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm_info);
-    snprintf(buf, sizeof(buf), "[%s] role=%s user=%s action=%s\n", 
-             time_str, role, user, action);
-
-    snprintf(path, sizeof(path), "%s/logged_district", ctx->district);
-
-    if (!check_access(path, ctx->role, 0, 1)) {
-        return;
-    }
-
-    fd = open(path, O_WRONLY | O_APPEND | O_CREAT, 0644);
-    if (fd >= 0) {
-        write(fd, buf, strlen(buf));
-        close(fd);
-        chmod(path, 0644);
-    }
-}
-
 int init_district (char *district_name){
 	struct stat st;
 
@@ -84,5 +47,27 @@ int init_district (char *district_name){
 	return 0;
 }
 
-void add(Context *ctx){
+int add(Context *ctx){
+	char path[256];
+	int fd;
+	Report r;
+	struct stat st;
+	char action_buf[256];
+
+	if(init_district(ctx->district) != 0) return -1;
+
+	snprintf(path, sizeof(path), "%s/reports.dat", ctx->district);
+
+	if(!(check_access(path, ctx->role, 1, 1))) return -1;
+
+    if (stat(path, &st) == 0) {
+        mode_t mode = st.st_mode & 0777;
+        if (mode != 0664) { // Adding a 0 at the beginning of an integer makes the digits after be percieved in octal
+            chmod(path, 0664);
+        }
+    }
+
+	memset(&r, 0, sizeof(Report));
+
+	return 0;
 }
