@@ -1,4 +1,5 @@
 #include "commands.h"
+#include "auxiliary_func.h"
 #include "context.h"
 #include "permissions.h"
 #include <sys/types.h>
@@ -68,6 +69,9 @@ int add(Context *ctx){
     }
 
 	memset(&r, 0, sizeof(Report));
+
+	r.id = get_next_id(ctx->district);
+	printf("%d", r.id);
 
 	return 0;
 }

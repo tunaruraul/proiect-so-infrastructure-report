@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <string.h>
 
-static int get_next_id(const char *district_name) {
+int get_next_id(char *district_name) {
     char path[512];
     struct stat st;
     int fd;
@@ -24,7 +24,7 @@ static int get_next_id(const char *district_name) {
     return count + 1;
 }
 
-void log_action(Context *ctx, const char *action) {
+void log_action(Context *ctx, char *action) {
     char path[512];
     int fd;
     char buf[1024];
