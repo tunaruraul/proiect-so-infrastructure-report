@@ -1,6 +1,8 @@
 #ifndef COMMANDS_H
 #define COMMANDS_H
 
-void init_district(char *district_name);
+#include <time.h>
+
+int init_district(char *district_name);
 
 #endif

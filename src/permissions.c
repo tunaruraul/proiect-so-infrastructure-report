@@ -28,22 +28,22 @@ int check_access(char *path, char *role, int need_read, int need_write){
 
 	if(strcmp(role, "manager") == 0){
 		if(need_read && !(mode & S_IRUSR)){
-			fprintf(stderr, "Access denied: manager lacks read permission rights for %s", path);
+			fprintf(stderr, "Access denied: manager lacks read permission rights for %s\n", path);
 			return 0;
 		}
 		
 		if(need_write && !(mode & S_IWUSR)){
-			fprintf(stderr, "Access denied: manager lacks write permission rights for %s", path);
+			fprintf(stderr, "Access denied: manager lacks write permission rights for %s\n", path);
 			return 0;
 		}
 	} else if (strcmp(role, "inspector") == 0) {
 		if(need_read && !(mode & S_IRGRP)){
-			fprintf(stderr, "Access denied: inspector lacks read permission rights for %s", path);
+			fprintf(stderr, "Access denied: inspector lacks read permission rights for %s\n", path);
 			return 0;
 		}
 		
 		if(need_write && !(mode & S_IWGRP)){
-			fprintf(stderr, "Access denied: inspector lacks write permission rights for %s", path);
+			fprintf(stderr, "Access denied: inspector lacks write permission rights for %s\n", path);
 			return 0;
 		}
 	} else {
