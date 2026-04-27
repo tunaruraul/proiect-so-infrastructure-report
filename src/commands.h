@@ -20,5 +20,6 @@ int add(Context *ctx);
 int list_report(Context *ctx);
 int view_report(Context *ctx, int report_id);
 int update_threshold(Context *ctx, int threshold_value);
+int remove_report(Context *ctx, int report_id);
 
 #endif

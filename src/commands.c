@@ -284,3 +284,98 @@ int update_threshold(Context *ctx, int threshold_value){
 
 	return 0;
 }
+
+int remove_report(Context *ctx, int report_id){
+	char path[256];
+	int fd;
+	Report r;
+	ssize_t bytes_read;
+	char action_buf[256];
+	int found = 0;
+	struct stat st;
+	off_t targe_pos = -1;
+	off_t pos = 0;
+
+	if(strcmp(ctx->role, "manager") != 0){
+		fprintf(stderr, "Role %s is not manager", ctx->role);
+		return -1;
+	}
+
+	snprintf(path, sizeof(path), "%s/reports.dat", ctx->district);
+
+    if (!check_access(path, ctx->role, 1, 1)) {
+        return -1;
+    }
+
+    fd = open(path, O_RDWR);
+    if (fd < 0) {
+        perror("open");
+        return -1;
+    }
+
+	while((bytes_read = read(fd, &r, sizeof(Report))) == sizeof(Report)){
+		if(r.id == report_id){
+			targe_pos = pos;
+			found = 1;
+			break;
+		}
+
+		pos+=sizeof(Report);
+	}
+
+	if(!found){
+		fprintf(stderr, "report %d not found in district %s", r.id, ctx->district);
+		close(fd);
+		return -1;
+	}
+
+    if (fstat(fd, &st) != 0) {
+        perror("fstat");
+        close(fd);
+        return -1;
+    }
+
+    off_t file_size = st.st_size;
+    off_t remaining = file_size - targe_pos - sizeof(Report);
+
+	if(remaining > 0){
+		char *buffer = malloc(remaining);
+		if(!buffer){
+			perror("malloc");
+			close(fd);
+			return(-1);
+		}
+
+		lseek(fd, targe_pos + sizeof(Report), SEEK_SET);
+		if(read(fd, buffer, sizeof(buffer)) != remaining){
+			perror("read");
+			free(buffer);
+			close(fd);
+			return -1;
+		}
+
+		lseek(fd, targe_pos, SEEK_SET);
+		if(write(fd, buffer, sizeof(buffer)) != remaining){
+			perror("read");
+			free(buffer);
+			close(fd);
+			return -1;
+		}
+
+		free(buffer);
+	}
+
+    if (ftruncate(fd, file_size - sizeof(Report)) != 0) {
+        perror("ftruncate");
+        close(fd);
+        return -1;
+    }
+
+    snprintf(action_buf, sizeof(action_buf), "remove report id=%d", r.id);
+    log_action(ctx, action_buf);
+
+    printf("Report %d removed successfully\n", r.id);
+    return 0;
+
+	return 0;
+}
