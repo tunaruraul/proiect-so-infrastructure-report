@@ -9,4 +9,4 @@ clean:
 	rm -f ./bin/main
 
 run:
-	./bin/main
+	./bin/main --role manager --user raul view 2

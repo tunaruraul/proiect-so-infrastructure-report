@@ -11,7 +11,6 @@
 int get_next_id(char *district_name) {
     char path[512];
     struct stat st;
-    int fd;
     int count = 0;
 
     snprintf(path, sizeof(path), "%s/reports.dat", district_name);

@@ -237,7 +237,6 @@ int view_report(Context *ctx, int report_id) {
 int update_threshold(Context *ctx, int threshold_value){
 	char path[256];
 	int fd;
-	Report r;
 	struct stat st;
 	char buf[64];
 	char action_buf[256];
