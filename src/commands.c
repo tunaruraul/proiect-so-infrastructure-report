@@ -215,8 +215,8 @@ int view_report(Context *ctx, int report_id) {
             printf("Inspector:   %s\n", r.inspector_name);
             printf("GPS:         %.6f, %.6f\n", r.latitude, r.longitude);
             printf("Category:    %s\n", r.category);
-            printf("Severity:    %d (%s)\n", r.severity,
-                   r.severity == 1 ? "minor" : r.severity == 2 ? "moderate" : "critical");
+            printf("Severity:    %d (%s)\n", r.sec_level,
+                   r.sec_level == 1 ? "minor" : r.sec_level == 2 ? "moderate" : "critical");
             printf("Timestamp:   %s\n", time_str);
             printf("Description: %s\n", r.description);
             found = 1;
@@ -230,6 +230,57 @@ int view_report(Context *ctx, int report_id) {
 		fprintf(stderr, "Report not found");
 		return 1;
 	}
+
+	return 0;
+}
+
+int update_threshold(Context *ctx, int threshold_value){
+	char path[256];
+	int fd;
+	Report r;
+	struct stat st;
+	char buf[64];
+	char action_buf[256];
+	
+	if(strcmp(ctx->role, "manager") != 0){
+		fprintf(stderr, "Role %s is not manager", ctx->role);
+		return -1;
+	}
+
+    snprintf(path, sizeof(path), "%s/district.cfg", ctx->district);
+
+    if (!check_access(path, ctx->role, 1, 1)) {
+        return -1;
+    }
+
+	if(stat(path, &st) != 0){
+		perror("stat");
+		return -1;
+	}
+
+	mode_t mode = st.st_mode & 0777;
+	if(mode != 0640) {
+		fprintf(stderr, "Error: permissions are %o, expected 640.", mode);
+		return -1;
+	}
+
+	fd = open(path, O_WRONLY | O_TRUNC);
+	if(fd < 0){
+		perror("open");
+		return -1;
+	}
+
+	snprintf(buf, sizeof(buf), "threshold=%d", threshold_value);
+	if(write(fd, buf, strlen(buf)) != (ssize_t)strlen(buf)){
+		perror("write");
+		close(fd);
+		return -1;
+	}
+
+	close(fd);
+
+    snprintf(action_buf, sizeof(action_buf), "changed threshold to %d", threshold_value);
+	log_action(ctx, action_buf);
 
 	return 0;
 }
