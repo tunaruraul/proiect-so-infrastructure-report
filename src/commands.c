@@ -45,6 +45,8 @@ int init_district (char *district_name){
 		}
 	}
 
+    create_symlink(district_name);
+
 	return 0;
 }
 

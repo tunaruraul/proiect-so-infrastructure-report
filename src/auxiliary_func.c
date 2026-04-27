@@ -50,6 +50,26 @@ void log_action(Context *ctx, char *action) {
     }
 }
 
+int create_symlink(char *district_name) {
+    char linkname[512];
+    char target[512];
+    struct stat st;
+
+    snprintf(linkname, sizeof(linkname), "active_reports-%s", district_name);
+    snprintf(target, sizeof(target), "%s/reports.dat", district_name);
+
+    lstat(linkname, &st);
+    if (S_ISLNK(st.st_mode)) {
+        unlink(linkname);
+    }
+
+    if (symlink(target, linkname) != 0) {
+        perror("symlink");
+        return -1;
+    }
+    return 0;
+}
+
 int parse_condition(const char *input, char *field, char *op, char *value) {
     const char *first_colon = strchr(input, ':');
     if (!first_colon) return -1;
