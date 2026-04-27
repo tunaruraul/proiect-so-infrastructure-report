@@ -18,5 +18,6 @@ typedef struct {
 int init_district(char *district_name);
 int add(Context *ctx);
 int list_report(Context *ctx);
+int view_report(Context *ctx);
 
 #endif

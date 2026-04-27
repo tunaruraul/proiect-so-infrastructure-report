@@ -184,3 +184,52 @@ int list_report(Context *ctx) {
 
 	return 0;
 }
+
+int view_report(Context *ctx, int report_id) {
+	char path[256];
+	int fd;
+	Report r;
+	ssize_t bytes_read;
+	int found = 0;
+
+	snprintf(path, sizeof(path), "%s/reports.dat", ctx->district);
+
+    if (!check_access(path, ctx->role, 1, 0)) {
+        return -1;
+    }
+
+    fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        perror("open");
+        return -1;
+    }
+
+	while((bytes_read = read(fd, &r, sizeof(Report))) == sizeof(Report)){
+		if(r.id == report_id){
+            char time_str[64];
+            struct tm *tm_info = localtime(&r.timestamp);
+            strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm_info);
+
+            printf("=== Report Details ===\n");
+            printf("ID:          %d\n", r.id);
+            printf("Inspector:   %s\n", r.inspector_name);
+            printf("GPS:         %.6f, %.6f\n", r.latitude, r.longitude);
+            printf("Category:    %s\n", r.category);
+            printf("Severity:    %d (%s)\n", r.severity,
+                   r.severity == 1 ? "minor" : r.severity == 2 ? "moderate" : "critical");
+            printf("Timestamp:   %s\n", time_str);
+            printf("Description: %s\n", r.description);
+            found = 1;
+            break;
+		}
+	}
+
+	close(fd);
+
+	if(!found){
+		fprintf(stderr, "Report not found");
+		return 1;
+	}
+
+	return 0;
+}
