@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "auxiliary_func.h"
 #include "permissions.h"
 #include "commands.h"
@@ -49,3 +50,57 @@ void log_action(Context *ctx, char *action) {
     }
 }
 
+int parse_condition(const char *input, char *field, char *op, char *value) {
+    const char *first_colon = strchr(input, ':');
+    if (!first_colon) return -1;
+
+    const char *second_colon = strchr(first_colon + 1, ':');
+    if (!second_colon) return -1;
+
+    size_t field_len = first_colon - input;
+    size_t op_len    = second_colon - (first_colon + 1);
+
+    if (field_len == 0 || field_len >= 64) return -1;
+    if (op_len == 0    || op_len >= 8)     return -1;
+    if (strlen(second_colon + 1) == 0)     return -1;
+
+    strncpy(field, input,           field_len); field[field_len] = '\0';
+    strncpy(op,    first_colon + 1, op_len);    op[op_len]       = '\0';
+    strncpy(value, second_colon + 1, 128 - 1);  value[127]       = '\0';
+
+    return 0;
+}
+
+int match_condition(Report *r, const char *field, const char *op, const char *value) {
+    /* ── numeric comparisons ── */
+    if (strcmp(field, "severity") == 0 || strcmp(field, "id") == 0) {
+        int rval = (strcmp(field, "id") == 0) ? r->id : r->sec_level;
+        int cval = atoi(value);
+
+        if (strcmp(op, "eq") == 0) return rval == cval;
+        if (strcmp(op, "ne") == 0) return rval != cval;
+        if (strcmp(op, "lt") == 0) return rval <  cval;
+        if (strcmp(op, "gt") == 0) return rval >  cval;
+        if (strcmp(op, "le") == 0) return rval <= cval;
+        if (strcmp(op, "ge") == 0) return rval >= cval;
+        fprintf(stderr, "Unknown operator for numeric field: %s\n", op);
+        return 0;
+    }
+
+    /* ── string comparisons ── */
+    const char *sval = NULL;
+    if      (strcmp(field, "inspector") == 0)  sval = r->inspector_name;
+    else if (strcmp(field, "category")  == 0)  sval = r->category;
+    else if (strcmp(field, "description") == 0) sval = r->description;
+    else {
+        fprintf(stderr, "Unknown field: %s\n", field);
+        return 0;
+    }
+
+    if (strcmp(op, "eq") == 0) return strcmp(sval, value) == 0;
+    if (strcmp(op, "ne") == 0) return strcmp(sval, value) != 0;
+    if (strcmp(op, "contains") == 0) return strstr(sval, value) != NULL;
+
+    fprintf(stderr, "Unknown operator for string field: %s\n", op);
+    return 0;
+}

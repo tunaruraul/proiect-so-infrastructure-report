@@ -378,3 +378,69 @@ int remove_report(Context *ctx, int report_id){
 
 	return 0;
 }
+
+int filter_reports(Context *ctx, int argc, char **argv, int cond_start) {
+    char path[256];
+    int fd;
+    Report r;
+    ssize_t bytes_read;
+    int count = 0;
+
+    snprintf(path, sizeof(path), "%s/reports.dat", ctx->district);
+
+    if (!check_access(path, ctx->role, 1, 0))
+        return -1;
+
+    fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        perror("open");
+        return -1;
+    }
+
+    /* parse every condition up-front so bad syntax fails before any I/O */
+    int nconds = argc - cond_start;
+    char fields[16][64], ops[16][8], values[16][128];
+
+    if (nconds > 16) {
+        fprintf(stderr, "Too many conditions (max 16)\n");
+        close(fd);
+        return -1;
+    }
+
+    for (int i = 0; i < nconds; i++) {
+        if (parse_condition(argv[cond_start + i], fields[i], ops[i], values[i]) != 0) {
+            fprintf(stderr, "Bad condition syntax: '%s'  (expected field:op:value)\n",
+                    argv[cond_start + i]);
+            close(fd);
+            return -1;
+        }
+    }
+
+    printf("%-5s %-20s %-12s %-10s %s\n",
+           "ID", "Inspector", "Category", "Severity", "Description");
+    printf("------------------------------------------------------------\n");
+
+    while ((bytes_read = read(fd, &r, sizeof(Report))) == sizeof(Report)) {
+        int match = 1;
+        for (int i = 0; i < nconds; i++) {
+            if (!match_condition(&r, fields[i], ops[i], values[i])) {
+                match = 0;
+                break;
+            }
+        }
+        if (match) {
+            printf("%-5d %-20s %-12s %-10d %s\n",
+                   r.id, r.inspector_name, r.category, r.sec_level, r.description);
+            count++;
+        }
+    }
+
+    close(fd);
+
+    if (count == 0)
+        printf("No reports matched.\n");
+    else
+        printf("\nMatched: %d report(s)\n", count);
+
+    return 0;
+}

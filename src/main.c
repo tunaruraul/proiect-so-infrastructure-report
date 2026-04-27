@@ -17,6 +17,7 @@ void print_usage(char *prog) {
     fprintf(stderr, "  view <district_id> <report_id>       View a specific report\n");
     fprintf(stderr, "  remove_report <district_id> <id>     Remove a report (manager only)\n");
     fprintf(stderr, "  update_threshold <district_id> <val> Update threshold (manager only)\n");
+	fprintf(stderr, "  filter <district_id> [field:op:value ...]      Filter reports by conditions\n");
     fprintf(stderr, "\nExamples:\n");
     fprintf(stderr, "  %s --role inspector --user bob add downtown\n", prog);
     fprintf(stderr, "  %s --role manager --user alice remove downtown 3\n", prog);
@@ -102,7 +103,15 @@ int main(int argc, char **argv) {
         }
 		ctx->district = argv[cmd_idx + 1];
         result = update_threshold(ctx, atoi(argv[cmd_idx + 2]));
-    }
+    } else if (strcmp(ctx->command, "filter") == 0) {
+    	if (cmd_idx + 1 >= argc) {
+        	fprintf(stderr, "Error: filter requires district_id and at least one condition\n");
+        	free(ctx);
+        	return 1;
+    	}
+    	ctx->district = argv[cmd_idx + 1];
+    	result = filter_reports(ctx, argc, argv, cmd_idx + 2);
+	}
     else {
         fprintf(stderr, "Error: unknown command '%s'\n", ctx->command);
         print_usage(argv[0]);
