@@ -7,8 +7,8 @@
 typedef struct {
 	int id;
 	char inspector_name[100];
-	int latitude;
-	int longitude;
+	double latitude;
+	double longitude;
 	char category[50];
 	int sec_level;
 	time_t timestamp;

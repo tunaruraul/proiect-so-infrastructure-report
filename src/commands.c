@@ -59,19 +59,68 @@ int add(Context *ctx){
 
 	snprintf(path, sizeof(path), "%s/reports.dat", ctx->district);
 
-	if(!(check_access(path, ctx->role, 1, 1))) return -1;
-
-    if (stat(path, &st) == 0) {
+    if (stat(path, &st) != 0) {
+		fd = open(path, O_CREAT | O_RDWR, 0664);
         mode_t mode = st.st_mode & 0777;
         if (mode != 0664) { // Adding a 0 at the beginning of an integer makes the digits after be percieved in octal
             chmod(path, 0664);
         }
     }
 
+	if(!(check_access(path, ctx->role, 1, 1))) return -1;
+
 	memset(&r, 0, sizeof(Report));
 
 	r.id = get_next_id(ctx->district);
-	printf("%d", r.id);
+	strncpy(r.inspector_name, ctx->user, sizeof(r.inspector_name));
+
+    printf("Enter latitude: ");
+    if (scanf("%lf", &r.latitude) != 1) {
+        fprintf(stderr, "Invalid latitude\n");
+        return -1;
+    }
+
+    printf("Enter longitude: ");
+    if (scanf("%lf", &r.longitude) != 1) {
+        fprintf(stderr, "Invalid longitude\n");
+        return -1;
+    }
+
+    printf("Enter category: ");
+    scanf("%49s", r.category);
+
+    printf("Enter severity: ");
+    if (scanf("%d", &r.sec_level) != 1 || r.sec_level < 1 || r.sec_level > 3) {
+        fprintf(stderr, "Invalid severity\n");
+        return -1;
+    }
+
+	r.timestamp = time(NULL);
+
+	printf("Enter description: ");
+	if(scanf("%255s", r.description) != 1){
+		fprintf(stderr, "Invalid description");
+		return -1;
+	}
+
+    fd = open(path, O_WRONLY | O_APPEND);
+    if (fd < 0) {
+        perror("open");
+        return -1;
+    }
+
+    if (write(fd, &r, sizeof(Report)) != sizeof(Report)) {
+        perror("write");
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+
+    snprintf(action_buf, sizeof(action_buf), "add report id=%d", r.id);
+    log_action(ctx, action_buf);
+
+    printf("Report added successfully with ID %d\n", r.id);
 
 	return 0;
 }
