@@ -124,3 +124,63 @@ int add(Context *ctx){
 
 	return 0;
 }
+
+int list_report(Context *ctx) {
+	char path[256];
+	Report r;
+	int fd;
+	struct stat st;
+	ssize_t bytes_read;
+	char perm[16];
+	int count = 0;
+
+	snprintf(path, sizeof(path), "%s/reports.dat", ctx->district);
+
+    if (!check_access(path, ctx->role, 1, 0)) {
+        return -1;
+    }
+
+	if(stat(path, &st) != 0){
+		fprintf(stderr, "No reports found for district %s\n", ctx->district);
+		return 0;
+	}
+
+	mode_to_string(st.st_mode, perm);
+
+	printf("District: %s\n", ctx->district);
+	printf("File: %s\n", path);
+	printf("Size: %ld\n", (long)st.st_size);
+	printf("Permissions: %s\n", perm);
+	printf("\n");
+
+    fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        perror("open");
+        return -1;
+    }
+
+    printf("%-5s %-20s %-15s %-15s %-12s %-10s %-20s %s\n",
+           "ID", "Inspector", "Latitude", "Longitude", "Category", "Severity", "Timestamp", "Description");
+    printf("-------------------------------------------------------------------------------------------------------------------------\n");
+
+	while ((bytes_read = read(fd, &r, sizeof(Report))) == sizeof(Report)) {
+		char time_str[64];
+		struct tm *tm_info = localtime(&r.timestamp);	
+
+		strftime(time_str, sizeof(time_str), "%Y-%m-%d %H-%M-%S", tm_info);
+    	printf("%-5d %-20s %-15lf %-15lf %-12s %-10d %-20s %s\n",
+				r.id, r.inspector_name, r.latitude, r.longitude, r.category,
+				r.sec_level, time_str, r.description);
+		count++;
+	}
+
+	close(fd);
+
+    if (count == 0) {
+        printf("No reports found.\n");
+    } else {
+        printf("\nTotal reports: %d\n", count);
+    }
+
+	return 0;
+}
