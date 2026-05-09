@@ -22,5 +22,6 @@ int view_report(Context *ctx, int report_id);
 int update_threshold(Context *ctx, int threshold_value);
 int remove_report(Context *ctx, int report_id);
 int filter_reports(Context *ctx, int argc, char **argv, int cond_start);
+int remove_district(Context *ctx);
 
 #endif

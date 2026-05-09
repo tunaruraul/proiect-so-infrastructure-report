@@ -111,7 +111,16 @@ int main(int argc, char **argv) {
     	}
     	ctx->district = argv[cmd_idx + 1];
     	result = filter_reports(ctx, argc, argv, cmd_idx + 2);
+	}  else if (strcmp(ctx->command, "remove_district") == 0) {
+    	if (cmd_idx + 1 >= argc) {
+        	fprintf(stderr, "Error: district not found\n");
+        	free(ctx);
+        	return 1;
+    	}
+    	ctx->district = argv[cmd_idx + 1];
+    	result = remove_district(ctx);
 	}
+
     else {
         fprintf(stderr, "Error: unknown command '%s'\n", ctx->command);
         print_usage(argv[0]);

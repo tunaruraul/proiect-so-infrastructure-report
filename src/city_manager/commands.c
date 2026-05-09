@@ -446,3 +446,50 @@ int filter_reports(Context *ctx, int argc, char **argv, int cond_start) {
 
     return 0;
 }
+
+int remove_district(Context *ctx) {
+    char district_path[256];
+    char symlink_path[256];
+
+    snprintf(district_path, sizeof(district_path), "%s", ctx->district);
+    snprintf(symlink_path, sizeof(symlink_path), "active_reports-%s", ctx->district);
+
+    if(ctx->district == NULL || strlen(ctx->district) == 0 ||
+            strcmp("/", ctx->district) == 0 || strcmp(".", ctx->district) == 0 ||
+            strcmp(".", ctx->district) == 0) {
+        fprintf(stderr, "Unsafe district path\n");
+        return -1;
+    }
+
+    unlink(symlink_path);
+
+    if(strcmp(ctx->role, "manager") != 0){
+        fprintf(stderr, "Role %s is not manager\n", ctx->role);
+        return -1;
+    }
+
+    pid_t child = fork(); 
+
+    if ( child < 0 ){
+        perror("Fork");
+        return -1;
+    }
+    if (child ==0){
+        execlp("rm", "rm", "-rf", "--", district_path, NULL); 
+        perror("execlp");
+        exit(127);
+    }
+
+    int status;
+
+    if(waitpid(child, &status, 0) < 0) {
+        perror("Waitpid");
+        return -1;
+    }
+
+    if(WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+
+    return -1;
+}
