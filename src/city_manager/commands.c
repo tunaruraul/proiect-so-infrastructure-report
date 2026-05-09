@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <errno.h>
+#include <signal.h>
 
 int init_district (char *district_name){
 	struct stat st;
@@ -48,6 +49,43 @@ int init_district (char *district_name){
     create_symlink(district_name);
 
 	return 0;
+}
+
+/*
+    This function should:
+        - open .monitor_pid
+        - read pid
+        - convert to int 
+        - send signal 
+        - write to log file
+*/
+
+int send_signal(){
+    int fd;
+
+    fd = open(".monitor_pid", O_RDONLY);
+
+    if(fd < 0) {
+        perror("open");
+        return -1;
+    }
+
+    char pid_string[32];
+
+    int bytes = read(fd, pid_string, sizeof(pid_string)-1);
+    if(bytes <= 0) {
+        return -1;
+    }
+
+    pid_string[bytes] = '\0';
+
+    pid_t monitor_pid = atoi(pid_string);
+
+    if(kill(monitor_pid, SIGUSR1) < 0){
+        return -1;
+    }
+
+    return 0;
 }
 
 int add(Context *ctx){
@@ -123,6 +161,12 @@ int add(Context *ctx){
     log_action(ctx, action_buf);
 
     printf("Report added successfully with ID %d\n", r.id);
+
+    if(send_signal() == 0){
+        log_action(ctx, "Monitor informed about report\n");
+    } else {
+        log_action(ctx, "Monitor failed to log action or send signal\n");
+    }
 
 	return 0;
 }

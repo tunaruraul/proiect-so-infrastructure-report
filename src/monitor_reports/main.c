@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 void sa_sigaction_int(int signal_id) {
-    char msg[] = "Interrupt signal action received\n";
+    char msg[] = "\nInterrupt signal action received\n";
     write(STDOUT_FILENO, msg, sizeof(msg));
 
     unlink(".monitor_pid");

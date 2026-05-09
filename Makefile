@@ -3,7 +3,7 @@ CFLAGS  = -Wall -Wextra -g
 OBJS    = bin/city_manager
 
 compile:
-	$(CC) $(CFLAGS) src/*.c -o $(OBJS)
+	$(CC) $(CFLAGS) src/city_manager/*.c -o $(OBJS)
 
 clean:
 	rm -f ./bin/city_manager
