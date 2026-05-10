@@ -1,8 +1,8 @@
-# This file shows how I built the helper functions for the filter function
+## Phase 1
 
 For this I am using the free version of Claude
 
-## Initial prompt:
+### Initial prompt:
 Uploaded header and .c files:
 This is the structure of my project so far, I need to implement this filter helper functions:
 
@@ -19,7 +19,7 @@ Describe in an ai_[usage.md](http://usage.md) file the tool used, the prompts yo
 
 Just give me the pieces of code for helpers and how they are used in the filter function, do not rewrite existing code logic and sections, the match and parse will be contained into auxiliary functions and then the filter will be inside commands.c
 
-## Response:
+### Response:
 Looking at your `Report` struct and existing code patterns, here are the two helper functions and the filter command:
 
 **In `auxiliary_func.h`** — add these declarations:
@@ -201,7 +201,7 @@ else if (strcmp(ctx->command, "filter") == 0) {
 ./inspector --role inspector --user bob filter downtown severity:ge:2 description:contains:leak
 ```
 
-## Initial run errors:
+### Initial run errors:
 ```bash
 make compile
 gcc -Wall -Wextra -g src/*.c -o bin/main
@@ -212,5 +212,186 @@ src/auxiliary_func.c:77:20: error: implicit declaration of function ‘atoi’ [
 make: *** [Makefile:6: compile] Error 1
 ```
 
-## How I solved problems:
+### How I solved problems:
 stdlib.h was not imported, added import now it is compiling
+
+## Phase 2
+
+### Initial prompt:
+1. Add a new command to the existing city_manager program, remove_district <district_id> that deletes the entire district directory and all its contents, plus the corresponding active_reports-* symlink. For deleting the directory, the program creates a child process, in which it calls the external command rm -rf <district_directory>. Be very careful when you test this so that you don't pass wrong arguments to rm thus deleting useful files or folders on your computer! The command is manager role only.
+
+I was using execlp for this, but from my understanding that does a child process but the parent process would still run after that, I should do something similar to async await, should I build the function in the helper file with execlp and then in main wait for it to end then return the execution value?
+
+Give me as little code as possible, I want more to be able to think for myself and will send snippets of code so you can work more as a code-reviewer/debugger if something goes wrong
+
+### Response:
+Yes: use fork() + execlp() in the child, and waitpid() in the parent. execlp() does not create a child process by itself; it replaces the current process image. So if you call execlp() directly in your main manager process, your program becomes rm and does not continue normally.
+
+### Initial clarifications:
+Everything after fork and container in if(pid ==0) is running for the child process
+Helped me realize I should build safety measures for running the rm command, so that it throws an error if it tries to delete folders such as: "/" "." ".."
+
+### help for points 2 and 3:
+2. Write a new program called monitor_reports that works as follows:
+at startup it creates or overwrites a hidden text file called .monitor_pid where it stores its main process ID. The file is situated at the same level of the directory tree as the district directories.
+when it ends, it deletes the above file
+the program only ends when it receives SIGINT, and writes a message on the standard output when it does
+the program responds to SIGUSR1 signals (which informs it that a new report has been added) by writing a message on the standard output
+3. Modify the existing city_manager program so that, when adding a new report, it notifies the monitor program of the event (by SIGUSR1), and writes a message acknowledging the notification in the corresponding log file for the report. If it doesn't find a PID of the monitor in the .monitor_pid file, or if any other error occurs (e.g., sending the signal did not work), the message in the log file must explicitly show that the monitor could not be informed of the event.
+
+Can you help me make sense of this? I need to create a forever running process with while(1) for the monitor that is like a watcher for new reports? the city manager has variable pid for each run, as it does not create something that runs in the background, I have to create a file, write to the file and sent a signal to the main monitor process, an estimate, how many lines of code would this be and what is the complexity of this task?
+
+### Response summarized:
+Yes, you understood the big picture.
+
+You are creating two separate programs:
+
+monitor_reports
+  runs continuously
+  saves its PID in .monitor_pid
+  waits for signals
+  exits only on SIGINT
+
+city_manager
+  runs normally per command
+  when add_report happens:
+    reads .monitor_pid
+    sends SIGUSR1 to that PID
+    logs whether notification succeeded
+
+The monitor is not “watching” the directory automatically. It is only waiting for city_manager to notify it.
+
+it tried to get me to use a volatile thing variable, which felt a bit over the top, and I did not want to spend time to research it, I just wanted to do a simple while(1), on of my questions were more if I am running a while(1) how do I make it stop when a signal is sent to the program, that is how I discovered pause()
+
+The manual page for pause() redirected me to use sigsuspend() as pause is obsolete
+
+
+Initial generated code:
+```c
+volatile sig_atomic_t keep_running = 1;
+
+void handle_sigint(int sig) {
+    write(STDOUT_FILENO, "Monitor stopping\n", 17);
+    keep_running = 0;
+}
+
+void handle_sigusr1(int sig) {
+    write(STDOUT_FILENO, "New report added\n", 17);
+}
+
+int main(void) {
+    FILE *f = fopen(".monitor_pid", "w");
+    fprintf(f, "%d\n", getpid());
+    fclose(f);
+
+    signal(SIGINT, handle_sigint);
+    signal(SIGUSR1, handle_sigusr1);
+
+    while (keep_running) {
+        pause();
+    }
+
+    unlink(".monitor_pid");
+    return 0;
+}
+```
+
+### Next question:
+```c
+    while(1) {
+        sigsuspend(SIG_BLOCK);
+    }
+```
+Can I do something like this? I see that pause is obsolete and the man pages recommend to use sigsuspend instead, but I do not fully understand how the mask works
+
+Nota Bene: Still can't really wrap my head around how mask, I mean I have an idea, but don't really fully understand it
+
+### Response:
+Not like this:
+```c
+sigsuspend(SIG_BLOCK);
+```
+
+SIG_BLOCK is not a signal mask. It is a constant used with sigprocmask().
+
+sigsuspend() expects a pointer to a sigset_t:
+```c
+sigsuspend(&mask);
+```
+
+For your assignment, the simplest correct sigsuspend() version is:
+```c
+sigset_t mask;
+
+sigemptyset(&mask);
+
+while (1) {
+    sigsuspend(&mask);
+}
+```
+
+Meaning:
+```
+Use an empty mask while sleeping.
+So no signals are blocked while waiting.
+Wake up when a signal arrives.
+```
+
+### Last question help request:
+3. Modify the existing city_manager program so that, when adding a new report, it notifies the monitor program of the event (by SIGUSR1), and writes a message acknowledging the notification in the corresponding log file for the report. If it doesn't find a PID of the monitor in the .monitor_pid file, or if any other error occurs (e.g., sending the signal did not work), the message in the log file must explicitly show that the monitor could not be informed of the event. 
+
+For this, should I create another function for getting the pid of the function and writing a log for the event in which it can not read or send a signal then call it into the add function?
+
+### Response:
+Yes. That is the cleanest approach.
+
+Create a helper function like:
+```c
+int notify_monitor(void);
+```
+
+It should:
+```
+1. open .monitor_pid
+2. read PID from it
+3. send SIGUSR1 using kill()
+4. return success or failure
+```
+
+So the responsibility is split nicely:
+
+```
+add_report()
+  creates report
+  writes normal report log
+  calls notify_monitor()
+  writes success/failure notification log
+
+notify_monitor()
+  only handles reading .monitor_pid and sending SIGUSR1
+```
+
+Use kill() like this:
+
+```
+kill(monitor_pid, SIGUSR1);
+```
+
+Despite the name, kill() just sends a signal.
+
+Also include:
+```
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+```
+
+The log message should be written no matter what:
+```
+success:
+Monitor was informed about the new report.
+
+failure:
+Monitor could not be informed about the new report.
+```
