@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 
 void sa_sigaction_int(int signal_id) {
     char msg[] = "\nInterrupt signal action received\n";
@@ -11,7 +12,7 @@ void sa_sigaction_int(int signal_id) {
 
     unlink(".monitor_pid");
 
-    exit(0);
+    _exit(0);
 }
 
 void sa_sigaction_sigusr(int signal_id) {
@@ -22,6 +23,33 @@ void sa_sigaction_sigusr(int signal_id) {
 
 int main() {
     int fd;
+    struct stat s;
+
+    if(stat(".monitor_pid", &s) == 0){
+        char msg[128];
+
+        int fd = open(".monitor_pid", O_RDONLY);
+        char pidbuf[32];
+
+        ssize_t n = -1;
+
+        if(fd > 0){
+            n = read(fd, pidbuf, sizeof(pidbuf)-1);
+            close(fd);
+        }
+
+        if(n > 0) {
+            pidbuf[n] = '\0';
+        } else {
+            strcpy(pidbuf, "unknown");
+        }
+
+        int len = snprintf(msg, sizeof(msg), "ERROR MONITOR ALREADY RUNNING WITH PID: %s", pidbuf);
+
+        write(STDOUT_FILENO, msg, len);
+
+        _exit(1);
+    }
 
     fd = open(".monitor_pid", O_CREAT | O_RDWR | O_APPEND, 0644);
 
@@ -30,12 +58,12 @@ int main() {
         return -1;
     }
 
-    pid_t pid = getppid();
+    pid_t pid = getpid();
     char pid_string[32];
 
-    snprintf(pid_string, sizeof(pid_string), "%d\n", pid);
+    snprintf(pid_string, sizeof(pid_string), "%d", pid);
 
-    write(fd, pid_string, sizeof(pid));
+    write(fd, pid_string, strlen(pid_string));
 
     close(fd);
 
