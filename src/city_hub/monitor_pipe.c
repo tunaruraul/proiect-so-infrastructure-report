@@ -34,7 +34,7 @@ void print_monitor_message(char *buf, int show_prompt) {
 
 int handle_monitor_message(char *buf, int *should_stop) {
     if(strncmp(buf, "ERROR", 5) == 0) {
-        print_monitor_message(buf, 1);
+        print_monitor_message(buf, 0);
         *should_stop = 1;
         return 1;
     }
@@ -115,7 +115,7 @@ pid_t start_monitor_child_process(int *pipefd) {
     return pid;
 }
 
-int start_hub_mon(pid_t *hub_mon, int *pipefd){
+int start_hub_mon(int *pipefd, int statusfd){
     setup_term_handler();
 
     if(pipe(pipefd) < 0) {
@@ -133,7 +133,10 @@ int start_hub_mon(pid_t *hub_mon, int *pipefd){
 
     close(pipefd[1]);
 
-    int startup_error = parse_pipe_messages(pipefd, hub_mon);
+    int startup_error = parse_pipe_messages(pipefd, &monitor_pid);
+
+    write(statusfd, startup_error ? "E" : "S", 1);
+    close(statusfd);
 
     close(pipefd[0]);
 
@@ -149,6 +152,12 @@ void start_watcher(pid_t *hub_mon, int *pipefd){
     if(*hub_mon > 0) {
         return;
     }
+    int statuspipe[2];
+
+    if(pipe(statuspipe) < 0){
+        perror("pipe");
+        return;
+    }
 
     *hub_mon = fork();
 
@@ -158,6 +167,18 @@ void start_watcher(pid_t *hub_mon, int *pipefd){
     }
 
     if(*hub_mon == 0) {
-        _exit(start_hub_mon(hub_mon, pipefd));
+        close(statuspipe[0]);
+        _exit(start_hub_mon(pipefd, statuspipe[1]));
     }
+
+    close(statuspipe[1]);
+    
+    char status;
+
+    if((read(statuspipe[0], &status, 1) == 1) && status == 'E') {
+        waitpid(*hub_mon, NULL, 0);
+        *hub_mon = -1;
+    }
+
+    close(statuspipe[0]);
 }

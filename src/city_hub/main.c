@@ -7,8 +7,8 @@
 #include <sys/wait.h>
 #include "monitor_pipe.h"
 
-static pid_t monitor_pid = -1;
-static pid_t hub_mon = -1;
+pid_t monitor_pid = -1;
+pid_t hub_mon = -1;
 
 void sa_sigaction_term(int sig){
     if(monitor_pid > 0){
