@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-void sa_sigaction_int(int signal_id) {
+void sa_sigaction_int(int sig) {
     char msg[] = "ENDED INTERRUPT SIGNAL RECEIVED\n";
     write(STDOUT_FILENO, msg, sizeof(msg)-1);
 
@@ -15,7 +15,7 @@ void sa_sigaction_int(int signal_id) {
     _exit(0);
 }
 
-void sa_sigaction_sigusr(int signal_id) {
+void sa_sigaction_sigusr(int sig) {
     char msg[] ="INFO NEW REPORT ADDED\n";
 
     write(STDOUT_FILENO, msg, sizeof(msg)-1);
