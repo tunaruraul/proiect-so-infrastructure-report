@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include "monitor_pipe.h"
 
 static pid_t monitor_pid = -1;
 static pid_t hub_mon = -1;
@@ -17,59 +18,6 @@ void sa_sigaction_term(int sig){
     _exit(0);
 }
 
-int parse_pipe_messages(int *pipefd){
-    ssize_t n;
-    char buf[256];
-    int startup_error = 0;
-    while((n = read(pipefd[0], buf, sizeof(buf)-1)) > 0){
-        if(hub_mon > 0) {
-            int status;
-
-            if(waitpid(hub_mon, &status, WNOHANG) == hub_mon){
-                if(WIFEXITED(status) && WEXITSTATUS(status) != 0){
-                    hub_mon = -1;
-                }
-            }
-        }
-
-        buf[n] = '\0';
-        if((strncmp(buf, "ERROR", 5)) == 0){
-            startup_error = 1;
-
-            char msg[256];
-            int len = snprintf(msg, sizeof(msg), "\nmonitor: %s\ncity manager > ", buf);
-            if(len > 0){
-                write(STDOUT_FILENO, msg, len);
-            }
-
-            break;
-        }
-
-        if((strncmp(buf, "ENDED", 5)) == 0){
-            startup_error = 0;
-
-            char msg[256];
-            int len = snprintf(msg, sizeof(msg), "\nmonitor: %s\n", buf);
-            if(len > 0){
-                write(STDOUT_FILENO, msg, len);
-            }
-
-            break;
-        }
-
-        if((strncmp(buf, "INFO", 4)) == 0){
-            char msg[256];
-            int len = snprintf(msg, sizeof(msg), "\nmonitor: %s\ncity manager > ", buf);
-            if(len > 0){
-                write(STDOUT_FILENO, msg, len);
-            }
-
-            continue;
-        }
-    }
-
-    return startup_error;
-}
 
 int main() {
     char line[256];
@@ -142,7 +90,7 @@ int main() {
 
                 close(pipefd[1]);
 
-                int startup_error = parse_pipe_messages(pipefd);
+                int startup_error = parse_pipe_messages(pipefd, &hub_mon);
 
                 close(pipefd[0]);
                 if(startup_error == 0) {
