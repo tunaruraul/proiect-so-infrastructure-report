@@ -17,6 +17,60 @@ void sa_sigaction_term(int sig){
     _exit(0);
 }
 
+int parse_pipe_messages(int *pipefd){
+    ssize_t n;
+    char buf[256];
+    int startup_error = 0;
+    while((n = read(pipefd[0], buf, sizeof(buf)-1)) > 0){
+        if(hub_mon > 0) {
+            int status;
+
+            if(waitpid(hub_mon, &status, WNOHANG) == hub_mon){
+                if(WIFEXITED(status) && WEXITSTATUS(status) != 0){
+                    hub_mon = -1;
+                }
+            }
+        }
+
+        buf[n] = '\0';
+        if((strncmp(buf, "ERROR", 5)) == 0){
+            startup_error = 1;
+
+            char msg[256];
+            int len = snprintf(msg, sizeof(msg), "\nmonitor: %s\ncity manager > ", buf);
+            if(len > 0){
+                write(STDOUT_FILENO, msg, len);
+            }
+
+            break;
+        }
+
+        if((strncmp(buf, "ENDED", 5)) == 0){
+            startup_error = 0;
+
+            char msg[256];
+            int len = snprintf(msg, sizeof(msg), "\nmonitor: %s\n", buf);
+            if(len > 0){
+                write(STDOUT_FILENO, msg, len);
+            }
+
+            break;
+        }
+
+        if((strncmp(buf, "INFO", 4)) == 0){
+            char msg[256];
+            int len = snprintf(msg, sizeof(msg), "\nmonitor: %s\ncity manager > ", buf);
+            if(len > 0){
+                write(STDOUT_FILENO, msg, len);
+            }
+
+            continue;
+        }
+    }
+
+    return startup_error;
+}
+
 int main() {
     char line[256];
     char command[64];
@@ -39,6 +93,10 @@ int main() {
 
         if(strcmp(command, "start_monitor") == 0) {
 
+            if(hub_mon > 0) {
+                continue;
+            }
+
             hub_mon = fork();
 
             if(hub_mon < 0) {
@@ -46,14 +104,6 @@ int main() {
                 exit(-1);
             }
 
-            if(hub_mon > 0) {
-                int status;
-                waitpid(hub_mon, &status, 0);
-
-                if(WIFEXITED(status) && WEXITSTATUS(status) != 0){
-                    hub_mon = -1;
-                }
-            }
 
             if(hub_mon == 0){
                 memset(&sa, 0, sizeof(sa));
@@ -77,7 +127,7 @@ int main() {
                     dup2(pipefd[1], STDOUT_FILENO);
                     close(pipefd[1]);
 
-                    // For testing purposes, usually I would include a make install that copies the binaries to /usr/bin to be available from path, this might break depending where the binary is ran from
+                    // For testing purposes I'm using the relative path to the compiled binary, usually I would include a make install that copies the binaries to /usr/bin to be available from path, this might break depending where the binary is ran from
                     char *argv[] = {
                         "./bin/monitor_reports",
                         NULL
@@ -92,33 +142,11 @@ int main() {
 
                 close(pipefd[1]);
 
-                char buf[256];
-                ssize_t n;
-                int startup_error = 0;
-                while((n = read(pipefd[0], buf, sizeof(buf)-1)) > 0){
-                    buf[n] = '\0';
-                    if((strncmp(buf, "ERROR", 5)) == 0){
-                        startup_error = 1;
-
-                        char msg[256];
-                        int len = snprintf(msg, sizeof(msg), "monitor: %s", buf);
-                        if(len > 0){
-                            write(STDOUT_FILENO, msg, len);
-                        }
-
-                        break;
-                    }
-
-                    char msg[256];
-                    int len = snprintf(msg, sizeof(msg), "monitor: %s", buf);
-                    if(len > 0){
-                        write(STDOUT_FILENO, msg, len);
-                    }
-                }
+                int startup_error = parse_pipe_messages(pipefd);
 
                 close(pipefd[0]);
                 if(startup_error == 0) {
-                    char ended[] = "Monitor ended\n";
+                    char ended[] = "\nMonitor ended\ncity manager > ";
                     write(STDOUT_FILENO, ended, sizeof(ended)-1);
                 }
                 _exit(startup_error ? 1 : 0);

@@ -7,8 +7,8 @@
 #include <sys/stat.h>
 
 void sa_sigaction_int(int signal_id) {
-    char msg[] = "\nInterrupt signal action received\n";
-    write(STDOUT_FILENO, msg, sizeof(msg));
+    char msg[] = "ENDED INTERRUPT SIGNAL RECEIVED\n";
+    write(STDOUT_FILENO, msg, sizeof(msg)-1);
 
     unlink(".monitor_pid");
 
@@ -16,9 +16,9 @@ void sa_sigaction_int(int signal_id) {
 }
 
 void sa_sigaction_sigusr(int signal_id) {
-    char msg[] = "New report added\n";
+    char msg[] ="INFO NEW REPORT ADDED\n";
 
-    write(STDOUT_FILENO, msg, sizeof(msg));
+    write(STDOUT_FILENO, msg, sizeof(msg)-1);
 }
 
 int main() {
@@ -44,7 +44,7 @@ int main() {
             strcpy(pidbuf, "unknown");
         }
 
-        int len = snprintf(msg, sizeof(msg), "ERROR MONITOR ALREADY RUNNING WITH PID: %s", pidbuf);
+        int len = snprintf(msg, sizeof(msg), "ERROR MONITOR ALREADY RUNNING WITH PID: %s\n", pidbuf);
 
         write(STDOUT_FILENO, msg, len);
 
