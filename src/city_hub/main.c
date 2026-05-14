@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include "monitor_pipe.h"
+#include "calculate_scores.h"
 
 pid_t monitor_pid = -1;
 pid_t hub_mon = -1;
@@ -34,8 +35,15 @@ int main() {
 
         sscanf(line, "%63s", command);
 
-        if(strcmp(command, "calculate_scores") == 0){
+        if(strncmp(command, "calculate_scores", 16) == 0){
+            int ndistricts = 0;
+            char **district = collet_arguments(line, &ndistricts); 
 
+            for(int i = 0; i < ndistricts; i++){
+                printf("%s\n", district[i]);
+            }
+
+            free(district);
         }
 
         if(strcmp(command, "start_monitor") == 0) {
