@@ -94,6 +94,7 @@ int add(Context *ctx){
 	Report r;
 	struct stat st;
 	char action_buf[256];
+    char description[256];
 
 	if(init_district(ctx->district) != 0) return -1;
 
@@ -137,11 +138,23 @@ int add(Context *ctx){
 
 	r.timestamp = time(NULL);
 
-	printf("Enter description: ");
-	if(scanf("%255s", r.description) != 1){
-		fprintf(stderr, "Invalid description");
-		return -1;
-	}
+	write(STDOUT_FILENO, "Enter description: ", 19);
+
+    ssize_t n = read(STDIN_FILENO, r.description, sizeof(r.description)-1);
+    if(n < 0) {
+        perror("read");
+        return -1;
+    }
+
+    if(n == 0){
+        fprintf(stderr, "Line is empty");
+        return -1;
+    }
+
+    r.description[n] = '\0';
+    if(r.description[n-1] == '\n'){
+        r.description[n-1] = '\0';
+    }
 
     fd = open(path, O_WRONLY | O_APPEND);
     if (fd < 0) {
@@ -505,12 +518,12 @@ int remove_district(Context *ctx) {
         return -1;
     }
 
-    unlink(symlink_path);
-
     if(strcmp(ctx->role, "manager") != 0){
         fprintf(stderr, "Role %s is not manager\n", ctx->role);
         return -1;
     }
+
+    unlink(symlink_path);
 
     pid_t child = fork(); 
 
