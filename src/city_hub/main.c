@@ -35,15 +35,8 @@ int main() {
 
         sscanf(line, "%63s", command);
 
-        if(strncmp(command, "calculate_scores", 16) == 0){
-            int ndistricts = 0;
-            char **district = collet_arguments(line, &ndistricts); 
-
-            for(int i = 0; i < ndistricts; i++){
-                printf("%s\n", district[i]);
-            }
-
-            free(district);
+        if(strncmp(command, "calculate_scores", 16) == 0) {
+            start_scorers_processes(line);
         }
 
         if(strcmp(command, "start_monitor") == 0) {
