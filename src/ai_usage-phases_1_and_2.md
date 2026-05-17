@@ -1,3 +1,7 @@
+# The philosophy
+I tried to experiment with using LLMs to my advantage rather than just getting them to spit code I do not understand, throughout this project I took different approaches in this aspect, which I have defined in the sections for each phase.
+The chat logs are not fully complete and I tried to summarize them in order to keep this document as tidy as possible, I mentioned the initial prompts that have been used, and where it helped me understand some concepts or the code that I received and modified with the conclusions I arrived at.
+
 ## Phase 1
 
 For this I am using the free version of Claude
@@ -394,4 +398,398 @@ Monitor was informed about the new report.
 
 failure:
 Monitor could not be informed about the new report.
+```
+
+## Phase 3
+
+### Changed approach:
+For this phase I chose a different approach of using ChatGPT to my advantage, I created a prompt and a GPT window to make him act like an enhanced stackoverflow/senior code reviewer, I used the following prompt:
+```
+Act as an enhanced Stack Overflow mentor for C and Unix systems programming.
+
+Your role:
+- Help me reason through bugs and architecture decisions.
+- Do not just give final code immediately unless I ask.
+- Explain concepts clearly, using small examples.
+- Point out mistakes directly, but constructively.
+- Prefer course-level/simple solutions over advanced production patterns unless needed.
+- When reviewing code, check correctness, safety, edge cases, and whether it matches the assignment.
+- Ask for missing files/errors only when necessary.
+- If I misunderstand a Unix concept like fork, exec, pipe, signals, dup2, waitpid, or file descriptors, correct my mental model first.
+- Keep explanations practical and connected to my project.
+- Before giving code, first tell me whether my idea is conceptually correct.
+
+Response style:
+- Start with the main issue or answer.
+- Then explain why.
+- Then show a minimal corrected example.
+- Avoid overengineering.
+- Avoid long unrelated theory.
+- Use C examples when helpful.
+- Assume I am learning OS concepts and want to understand, not just copy-paste.
+
+Project context:
+I am building a Unix/C city management project with:
+- city_manager
+- monitor_reports
+- city_hub
+- fork/exec
+- pipes
+- signals
+- low-level file I/O
+- process management
+
+When I paste code, review it like a senior teaching assistant.
+```
+
+### Initial prompt:
+```
+I am building a project as an incident manager in C for Linux, this project has 3 phases, I completed the 2 previous ones in which I had created the city manager with all its functionalities, then in the second phase I used forks to create child processes that monitor the principal city manager and where the city manager interracted with it through pipes, now I'm at the last stage and I need to implement the following:
+
+Write an additional program called city_hub that presents an interactive command-line interface. The program understands the following commands:
+start_monitor: Creates a background child process (we'll call it hub_mon) which in turn forks as a child process a modified version of the monitor implemented at the previous phase. The monitor program is still a standalone executable. Before forking the monitor, hub_mon creates a pipe and sets it up so that it can read from it the output of the monitor. At startup, the modified monitor first checks whether another monitor is already running (by using the monitor_pid file), and if true, sends through the pipe an  error message that specifies the existing monitor's id, then ends. The hub_mon reads from the read end of the pipe, and displays the monitor's messages to the user as soon as available. If the message shows that the monitor has ended for any reason, it prins a specific message to the user. You will probably have to change the structure of the lines written to stdout by the monitor, to distinguish between different types of messages, and to properly read them in full (they are variable in length).
+calculate_scores <list_of_districts>: When invoked, for each existing district in the argument list, the hub spawns a separate scorer process. Each scorer is an external program written by you (in C or as a shell script) that computes, for each inspector in that district, a workload score — the sum of severity levels across all reports filed by that inspector. The hub sets up pipes for each scorer and uses dup2() to redirect the scorer's standard output to the pipe through which it returns a plain-text summary. The hub collects all scorers' output and prints a combined workload report. 
+You may reuse/refactor code form the city_manager if needed.
+
+Break this issue into a sequence of smaller issues that can be tackled easier, my initial problem is decyphering the request for these types of problems if I am not building something myself where I know exactly what the program should do or how to behave and I want to avoid any misunderstandings of the requests.
+```
+
+### Response:
+```
+Your main task is not one program, but a small process architecture with clear communication rules.
+
+Think of phase 3 as adding a controller program:
+
+city_hub
+ ├── hub_mon
+ │    └── monitor
+ ├── scorer for district A
+ ├── scorer for district B
+ └── scorer for district C
+
+# Break it into Smaller Issues
+
+## 1. Define what city_hub does
+
+city_hub is an interactive shell-like program.
+
+It repeatedly reads commands:
+
+city_hub> start_monitor
+city_hub> calculate_scores center north west
+city_hub> exit
+
+At first, implement only:
+
+while (1) {
+    print prompt;
+    read line;
+    parse command;
+}
+
+No fork() yet.
+
+--------------------------------------------------
+
+## 2. Implement command parsing
+
+You need to recognize:
+
+start_monitor
+calculate_scores <list_of_districts>
+exit
+
+For example:
+
+calculate_scores district1 district2 district3
+
+means:
+
+argv[0] = calculate_scores
+argv[1] = district1
+argv[2] = district2
+argv[3] = district3
+
+This can be done with strtok().
+
+--------------------------------------------------
+
+## 3. Implement start_monitor without pipes first
+
+Conceptually:
+
+city_hub forks hub_mon
+hub_mon execs/runs monitor
+city_hub continues accepting commands
+
+But the assignment says hub_mon must itself fork the monitor.
+
+So the real structure is:
+
+city_hub
+ └── hub_mon
+      └── monitor
+
+First milestone:
+
+pid_t pid = fork();
+
+if (pid == 0) {
+    // hub_mon code
+    fork monitor here
+    exit(0);
+}
+
+Important:
+
+city_hub should not wait normally for hub_mon, otherwise it is not “background”.
+
+--------------------------------------------------
+
+## 4. Add the pipe between hub_mon and monitor
+
+The pipe is created by hub_mon.
+
+hub_mon creates pipe
+hub_mon forks monitor
+monitor stdout -> pipe write end
+hub_mon reads pipe read end
+
+Flow:
+
+monitor printf(...) ---> pipe ---> hub_mon reads ---> prints to terminal
+
+In code terms:
+
+pipe(fd);
+
+pid_t mon_pid = fork();
+
+if (mon_pid == 0) {
+    dup2(fd[1], STDOUT_FILENO);
+
+    close(fd[0]);
+    close(fd[1]);
+
+    execl("./monitor", "monitor", NULL);
+}
+else {
+    close(fd[1]);
+
+    read from fd[0];
+}
+
+--------------------------------------------------
+
+## 5. Modify the monitor output format
+
+The request hints that normal text output is not enough.
+
+You need structured messages.
+
+For example:
+
+INFO: Monitor started with pid 1234
+ERROR_ALREADY_RUNNING: 9912
+REPORT: New incident in district center
+ENDED: Monitor shutting down
+
+Then hub_mon can distinguish message types.
+
+Example logic:
+
+if line starts with ERROR_ALREADY_RUNNING:
+    print "Monitor is already running with PID ..."
+if line starts with ENDED:
+    print "Monitor ended."
+else:
+    print monitor message normally
+
+This is much safer than trying to guess from arbitrary text.
+
+--------------------------------------------------
+
+## 6. Implement monitor PID file checking
+
+At startup, the modified monitor must check:
+
+monitor_pid file exists?
+does it contain a PID?
+is that process still alive?
+
+Typical check:
+
+kill(pid, 0);
+
+Meaning:
+
+if (kill(pid, 0) == 0) {
+    // process exists
+}
+
+So monitor startup should do:
+
+read monitor_pid
+if PID exists and process is alive:
+    print ERROR_ALREADY_RUNNING:<pid>
+    exit
+else:
+    write own PID into monitor_pid
+    continue normally
+
+Also, when monitor exits normally, it should remove the PID file.
+
+--------------------------------------------------
+
+## 7. Make hub_mon detect monitor termination
+
+hub_mon should read monitor output until EOF.
+
+When the monitor process closes stdout or exits, the pipe read returns 0.
+
+Then hub_mon should print something like:
+
+[hub] Monitor process ended.
+
+Also call:
+
+waitpid(mon_pid, &status, 0);
+
+to clean up the monitor child.
+
+--------------------------------------------------
+
+## 8. Implement calculate_scores conceptually
+
+This command does something separate from monitor.
+
+Input:
+
+calculate_scores center north west
+
+Expected behavior:
+
+city_hub forks one scorer per district
+each scorer computes inspector workload for that district
+each scorer prints result to stdout
+city_hub captures each stdout using a pipe
+city_hub combines all outputs
+
+Architecture:
+
+city_hub
+ ├── scorer center
+ ├── scorer north
+ └── scorer west
+
+Each scorer is external:
+
+./scorer center
+./scorer north
+./scorer west
+
+--------------------------------------------------
+
+## 9. Write the scorer program separately
+
+Do not start with pipes.
+
+First make this work:
+
+./scorer center
+
+Example output:
+
+District: center
+Inspector Alice: 12
+Inspector Bob: 7
+Inspector John: 3
+
+The scorer should:
+
+open the district/report files
+read reports
+group by inspector
+sum severity values
+print plain text result
+
+Only after this works should you connect it to city_hub.
+
+--------------------------------------------------
+
+## 10. Add pipes for scorers
+
+For each district:
+
+city_hub creates pipe
+city_hub forks
+child redirects stdout to pipe
+child execs scorer
+parent reads from pipe
+
+Minimal structure:
+
+pipe(fd);
+
+pid_t pid = fork();
+
+if (pid == 0) {
+
+    dup2(fd[1], STDOUT_FILENO);
+
+    close(fd[0]);
+    close(fd[1]);
+
+    execl("./scorer", "scorer", district_name, NULL);
+
+    perror("execl");
+    exit(1);
+}
+
+close(fd[1]);
+
+read fd[0] in parent;
+
+close(fd[0]);
+
+waitpid(pid, NULL, 0);
+
+Later, you can do all scorers concurrently, but first make it work one-by-one.
+
+--------------------------------------------------
+
+# Recommended Implementation Order
+
+1. city_hub prompt loop
+2. command parser
+3. start_monitor creates hub_mon
+4. hub_mon forks monitor
+5. pipe monitor stdout into hub_mon
+6. monitor_pid file logic
+7. structured monitor messages
+8. standalone scorer program
+9. calculate_scores with one district
+10. calculate_scores with multiple districts
+11. cleanup: waitpid, close pipes, handle errors
+
+--------------------------------------------------
+
+# Most Important Misunderstanding to Avoid
+
+city_hub does not directly run the monitor.
+
+The assignment wants this:
+
+city_hub -> hub_mon -> monitor
+
+And separately:
+
+city_hub -> scorer processes
+
+So you have two features:
+
+start_monitor       handles monitor process supervision
+calculate_scores    launches independent scorer workers
+
+They are related only because both are controlled by city_hub.
 ```
